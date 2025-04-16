@@ -3,7 +3,6 @@ from flask_socketio import SocketIO, join_room, emit
 import eventlet
 import json
 import os
-from pyngrok import ngrok, conf
 from dotenv import load_dotenv
 from flask_cors import CORS
 
@@ -107,25 +106,8 @@ def handle_disconnect():
             break
     save_rooms()
 
-def setup_ngrok():
-    ngrok_auth_token = os.environ.get("NGROK_AUTH_TOKEN", "")
-    if ngrok_auth_token:
-        conf.get_default().auth_token = ngrok_auth_token
-        
-        ngrok_domain = os.environ.get("NGROK_DOMAIN", "")
-        
-        if ngrok_domain:
-            print(f" * Using static ngrok domain: {ngrok_domain}")
-            public_url = ngrok.connect(5000, domain=ngrok_domain)
-        else:
-            public_url = ngrok.connect(5000)
-            
-        print(f" * ngrok tunnel available at: {public_url}")
-        return public_url
-    else:
-        print(" * NGROK_AUTH_TOKEN not provided, running without ngrok")
-        return None
-
 if __name__ == '__main__':
-    ngrok_url = setup_ngrok()
-    socketio.run(app, host="0.0.0.0", port=5000, debug=False)
+    # Get port from environment variable or default to 5000
+    port = int(os.environ.get("PORT", 5000))
+    # Use host 0.0.0.0 to make it publicly accessible
+    socketio.run(app, host="0.0.0.0", port=port, debug=False)
