@@ -1,40 +1,34 @@
-# File Sharing Server with ngrok
+# EasyShare
 
-This is a Flask-SocketIO based file sharing server that can be exposed to the internet using ngrok.
+A real-time file sharing web application that allows users to create rooms and share files with others. Built with Flask and Socket.IO.
+
+## Features
+
+- Create private sharing rooms
+- Real-time file transfer with chunk-based uploads
+- Automatic ngrok tunnel for public access
+- Persistent room data storage
+- Join a room using a room code
+- Auto-reconnect and request missing chunks
 
 ## Setup
 
-1. Install the required dependencies:
+1. Install dependencies:
    ```
-   pip install flask flask-socketio eventlet pyngrok python-dotenv flask-cors
-   ```
-
-2. Create a `.env` file with your ngrok auth token and static domain:
-   ```
-   NGROK_AUTH_TOKEN=your_auth_token_here
-   NGROK_DOMAIN=your-static-domain.ngrok-free.app
+   pip install -r requirements.txt
    ```
 
-   You can get your auth token from the [ngrok dashboard](https://dashboard.ngrok.com/auth/your-authtoken).
-   The free tier of ngrok includes one static domain which you can set up in your ngrok dashboard.
+2. Create a `.env` file with your ngrok auth token (optional):
+   ```
+   NGROK_AUTH_TOKEN=your_token_here
+   NGROK_DOMAIN=your_domain_here  # optional
+   ```
 
-## Usage
-
-1. Run the server:
+3. Run the server:
    ```
    python server.py
    ```
 
-2. The server will start on port 5000 and create an ngrok tunnel.
-   - If you configured a static domain, it will use that domain.
-   - Otherwise, it will create a random ngrok URL.
+## How It Works
 
-3. The ngrok URL will be displayed in the console, which you can share with others to connect to your file sharing server.
-
-## Features
-
-- Create a room to share files
-- Join a room using a room code
-- Transfer files in chunks
-- Auto-reconnect and request missing chunks
-- Persists room information to a JSON file 
+The application uses WebSockets to handle real-time communication between clients. Files are split into chunks for efficient transfer and reassembled on the recipient's end.
