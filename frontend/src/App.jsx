@@ -468,20 +468,6 @@ function App() {
                         Leave Room
                       </Button>
                     </div>
-
-                    {files.length > 0 && (
-                      <div className="mt-6 pt-4 border-t">
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-sm font-medium">Overall Progress</span>
-                          <span className="text-xs text-muted-foreground">{Math.round(calculateOverallProgress())}%</span>
-                        </div>
-                        <Progress 
-                          value={calculateOverallProgress()} 
-                          className="h-2" 
-                          variant={calculateOverallProgress() === 100 ? "green" : "accent"}
-                        />
-                      </div>
-                    )}
                   </CardContent>
                 </Card>
               )}

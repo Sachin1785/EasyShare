@@ -10,13 +10,6 @@ const Progress = React.forwardRef(({
   size = "default",
   ...props 
 }, ref) => {
-  const [progress, setProgress] = React.useState(0)
-  
-  React.useEffect(() => {
-    const animationTimeout = setTimeout(() => setProgress(value), 100)
-    return () => clearTimeout(animationTimeout)
-  }, [value])
-
   return (
     <div className="relative w-full">
       <ProgressPrimitive.Root
@@ -41,15 +34,14 @@ const Progress = React.forwardRef(({
               "bg-green-500": variant === "green",
               "bg-amber-500": variant === "amber",
               "bg-red-500": variant === "destructive",
-              "animate-pulse": progress < 100 && progress > 0,
             }
           )}
-          style={{ transform: `translateX(-${100 - (progress || 0)}%)` }}
+          style={{ transform: `translateX(-${100 - (value || 0)}%)` }}
         />
       </ProgressPrimitive.Root>
       {showValue && (
         <span className="absolute right-0 -top-6 text-xs font-medium">
-          {Math.round(progress || 0)}%
+          {Math.round(value || 0)}%
         </span>
       )}
     </div>
