@@ -15,7 +15,7 @@ import RoomInfo from "./components/RoomInfo";
 import { Download, File } from "lucide-react";
 import { Progress } from "./components/ui/progress";
 
-const socket = io("https://mostly-unbiased-ladybird.ngrok-free.app", {
+const socket = io("https://easyshare-tn6b.onrender.com", {
   withCredentials: false,
   transports: ['websocket', 'polling'],
   reconnection: true,
