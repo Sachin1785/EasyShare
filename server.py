@@ -1,113 +1,131 @@
 from flask import Flask, request
 from flask_socketio import SocketIO, join_room, emit
 import eventlet
-import json
-import os
+from pyngrok import ngrok, conf
 from dotenv import load_dotenv
 from flask_cors import CORS
+from pymongo import MongoClient
+import os
 
-# Load environment variables from .env file
+# Load environment variables
 load_dotenv()
 
+# Flask app setup
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
-socketio = SocketIO(app, 
-                   cors_allowed_origins="*", 
-                   async_mode='eventlet', 
+
+# SocketIO setup
+socketio = SocketIO(app,
+                   cors_allowed_origins="*",
+                   async_mode='eventlet',
                    ping_timeout=60,
                    ping_interval=25)
 
-ROOMS_FILE = 'rooms.json'
+# MongoDB setup
+MONGO_URI = os.environ.get("MONGO_URI")
+client = MongoClient(MONGO_URI)
+db = client['file_sharing']
+rooms_collection = db['rooms']
 
-# Load rooms from file
-def load_rooms():
-    if os.path.exists(ROOMS_FILE):
-        with open(ROOMS_FILE, 'r') as f:
-            return json.load(f)
-    return {}
+# Helper functions
+def get_room(room_code):
+    return rooms_collection.find_one({"_id": room_code})
 
-# Save rooms to file
-def save_rooms():
-    with open(ROOMS_FILE, 'w') as f:
-        json.dump(rooms, f)
+def create_or_update_room(room_code, data):
+    rooms_collection.update_one({"_id": room_code}, {"$set": data}, upsert=True)
 
-rooms = load_rooms()
+def delete_room(room_code):
+    rooms_collection.delete_one({"_id": room_code})
 
+# Root route
 @app.route('/')
 def index():
     return "File Sharing Server Running"
+
+# Socket.IO events
 
 @socketio.on('create_room')
 def create_room(data):
     room_code = data['room']
     files = data['files']
-    rooms[room_code] = {"files": files, "sender": request.sid, "recipients": {}}
+    room_data = {
+        "_id": room_code,
+        "files": files,
+        "sender": request.sid,
+        "recipients": {}
+    }
+    create_or_update_room(room_code, room_data)
     join_room(room_code)
     emit('room_created', {'room': room_code}, room=request.sid)
-    save_rooms()
 
 @socketio.on('join_room')
 def join_room_event(data):
     room_code = data['room']
-    if room_code in rooms:
+    room = get_room(room_code)
+    if room:
         join_room(room_code)
-        rooms[room_code]['recipients'][request.sid] = []
-        emit('file_list', {'files': rooms[room_code]['files'], 'room': room_code}, room=request.sid)
+        room['recipients'][request.sid] = []
+        create_or_update_room(room_code, room)
+        emit('file_list', {'files': room['files'], 'room': room_code}, room=request.sid)
     else:
         emit('error', {'message': 'Room not found'})
-    save_rooms()
 
 @socketio.on('request_missing_chunks')
 def request_missing_chunks(data):
     room_code = data['room']
-    if not room_code or room_code not in rooms:
+    room = get_room(room_code)
+    if not room:
         print(f"Invalid room code: {room_code}")
-        return  
+        return
     file_index = data['file_index']
     received_indexes = data['receivedIndexes']
-
-    sender_sid = rooms[room_code]["sender"]
+    sender_sid = room['sender']
     emit('send_missing_chunks', {
         'file_index': file_index,
         'missing_chunks': received_indexes,
         'recipient': request.sid
     }, room=sender_sid)
-    save_rooms()
 
 @socketio.on('chunk_transfer')
 def chunk_transfer(data):
-    room_code = data['room']
     if 'recipient' in data and data['recipient']:
-        recipient_sid = data['recipient']
-        emit('receive_chunk', data, room=recipient_sid)
+        # direct to one recipient
+        emit('receive_chunk', data, room=data['recipient'])
     else:
-        emit('receive_chunk', data, room=room_code, include_self=False)
-    save_rooms()
+        # broadcast to all in room except sender
+        emit('receive_chunk', data, room=data['room'], include_self=False)
 
 @socketio.on('confirm_file_received')
 def confirm_file_received(data):
     room_code = data['room']
     file_index = data['file_index']
-    
-    if room_code in rooms:
-        sender_sid = rooms[room_code]['sender']
+    room = get_room(room_code)
+    if room:
         emit('file_confirmed', {
             'file_index': file_index,
             'recipient': request.sid
-        }, room=sender_sid)
-    save_rooms()
+        }, room=room['sender'])
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    for room, details in rooms.items():
-        if request.sid == details.get('sender'):
-            emit('room_closed', {}, room=room)
-            del rooms[room]
-            break
-    save_rooms()
+    sid = request.sid
 
+    # 1) Close & delete every room where this socket was the sender
+    sender_rooms = list(rooms_collection.find({"sender": sid}))
+    for room in sender_rooms:
+        # notify any connected clients that the room is closed
+        emit('room_closed', {}, room=room['_id'])
+        # remove the room document from MongoDB
+        rooms_collection.delete_one({"_id": room['_id']})
+
+    # 2) Remove this socket from any recipients lists in other rooms
+    rooms_collection.update_many(
+        {f"recipients.{sid}": {"$exists": True}},
+        {"$unset": {f"recipients.{sid}": ""}}
+    )
+
+
+# Run server
 if __name__ == '__main__':
-    # Get port from environment variable or default to 5000
-    port = int(os.environ.get("PORT", 5000))
-    # Use host 0.0.0.0 to make it publicly accessible
-    socketio.run(app, host="0.0.0.0", port=port, debug=False)
+    # ngrok_url = setup_ngrok()   # if you need ngrok, uncomment this
+    socketio.run(app, host="0.0.0.0", port=5000, debug=False)
